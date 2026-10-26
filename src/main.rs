@@ -13,7 +13,7 @@ const TOKENIZER: &str = "weights/tokenizer.json";
 const CONFIG: &str = "weights/config.json";
 
 fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-    let device = Device::flex();
+    let device = Device::wgpu(Default::default());
 
     let config: BertConfig = serde_json::from_str(&fs::read_to_string(CONFIG)?)?;
     let mut model = BertForSequenceClassificationConfig::new().init(&config, &device);
