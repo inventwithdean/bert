@@ -4,7 +4,11 @@ use burn::{
     module::Module,
     nn::{Embedding, EmbeddingConfig, LayerNorm, LayerNormConfig, Linear, LinearConfig},
     tensor::{
-        Bool, Device, Int, activation::gelu, module::attention, ops::AttentionModuleOptions, s,
+        Bool, Device, Int,
+        activation::{gelu, tanh},
+        module::attention,
+        ops::AttentionModuleOptions,
+        s,
     },
 };
 
@@ -269,5 +273,125 @@ impl BertLayerConfig {
             intermediate,
             output,
         }
+    }
+}
+
+#[derive(Module, Debug)]
+pub struct BertEncoder {
+    layer: Vec<BertLayer>,
+}
+
+impl BertEncoder {
+    pub fn forward(&self, hidden_states: Tensor<3>, attention_mask: Tensor<4, Bool>) -> Tensor<3> {
+        let mut hidden_states = hidden_states.clone();
+        for layer_module in self.layer.iter() {
+            hidden_states = layer_module.forward(hidden_states, attention_mask.clone());
+        }
+        hidden_states
+    }
+}
+
+#[derive(Config, Debug)]
+pub struct BertEncoderConfig {}
+
+impl BertEncoderConfig {
+    pub fn init(&self, config: &BertConfig, device: &Device) -> BertEncoder {
+        let mut layer = vec![];
+        for _ in 0..config.num_hidden_layers {
+            layer.push(BertLayerConfig::new().init(config, device));
+        }
+        BertEncoder { layer }
+    }
+}
+
+#[derive(Module, Debug)]
+pub struct BertPooler {
+    dense: Linear,
+}
+
+impl BertPooler {
+    pub fn forward(&self, hidden_states: Tensor<3>) -> Tensor<2> {
+        // hidden_states: (B, seq_len, hidden_size)
+        let first_token_tensor = hidden_states.slice(s![.., 0..1, ..]).squeeze_dim::<2>(1); // (B, hidden_size)
+        let pooled_output = self.dense.forward(first_token_tensor);
+        tanh(pooled_output)
+    }
+}
+
+#[derive(Config, Debug)]
+pub struct BertPoolerConfig {}
+
+impl BertPoolerConfig {
+    pub fn init(&self, config: &BertConfig, device: &Device) -> BertPooler {
+        let dense = LinearConfig::new(config.hidden_size, config.hidden_size).init(device);
+        BertPooler { dense }
+    }
+}
+
+#[derive(Module, Debug)]
+pub struct BertModel {
+    embeddings: BertEmbeddings,
+    encoder: BertEncoder,
+    pooler: BertPooler,
+}
+
+impl BertModel {
+    pub fn forward(
+        &self,
+        input_ids: Tensor<2, Int>,
+        attention_mask: Tensor<2, Bool>, // true indicates value to mask
+        token_type_ids: Tensor<2, Int>,
+    ) -> Tensor<2> {
+        let embedding_output = self.embeddings.forward(input_ids, token_type_ids);
+        let encoder_outputs = self.encoder.forward(
+            embedding_output,
+            attention_mask.unsqueeze_dims::<4>(&[1, 2]),
+        );
+        self.pooler.forward(encoder_outputs)
+    }
+}
+
+#[derive(Config, Debug)]
+pub struct BertModelConfig {}
+
+impl BertModelConfig {
+    pub fn init(&self, config: &BertConfig, device: &Device) -> BertModel {
+        let embeddings = BertEmbeddingsConfig::new().init(config, device);
+        let encoder = BertEncoderConfig::new().init(config, device);
+        let pooler = BertPoolerConfig::new().init(config, device);
+        BertModel {
+            embeddings,
+            encoder,
+            pooler,
+        }
+    }
+}
+
+#[derive(Module, Debug)]
+pub struct BertForSequenceClassification {
+    bert: BertModel,
+    classifier: Linear,
+}
+
+impl BertForSequenceClassification {
+    pub fn forward(
+        &self,
+        input_ids: Tensor<2, Int>,
+        attention_mask: Tensor<2, Bool>,
+        token_type_ids: Tensor<2, Int>,
+    ) -> Tensor<2> {
+        let pooler_output = self.bert.forward(input_ids, attention_mask, token_type_ids);
+        self.classifier.forward(pooler_output)
+    }
+}
+
+#[derive(Config, Debug)]
+pub struct BertForSequenceClassificationConfig {}
+
+impl BertForSequenceClassificationConfig {
+    pub fn init(&self, config: &BertConfig, device: &Device) -> BertForSequenceClassification {
+        let bert = BertModelConfig::new().init(config, device);
+        let classifier = LinearConfig::new(config.hidden_size, 1).init(device);
+        BertForSequenceClassification { bert, classifier }
     }
 }
