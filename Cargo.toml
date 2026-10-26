@@ -1,0 +1,11 @@
+[package]
+name = "bert"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+burn = { version = "0.22.1", features = ["std", "flex"], default-features = false }
+burn-store = "0.22.1"
+serde = "1.0.229"
+serde_json = "1.0.151"
+tokenizers = "0.23.2"
