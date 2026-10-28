@@ -1,6 +1,9 @@
-### A Rust implementation of BERT for sequence classification (cross-encoder/reranking) using the [Burn](https://github.com/tracel-ai/burn) framework.
+# Oxidizing reranking
 
-Runs on cpu via flex or on GPU via the wgpu backend.
+**BERT cross-encoder inference in pure Rust. Supports both CPU and GPU.**
+
+Runs on cpu via burn's flex or on GPU via the wgpu backend.
+
 | Latency per request | Latency per document |
 |--|--|
 | ![](./images/latency_per_request.png) |  ![](./images/latency_per_document.png) |
