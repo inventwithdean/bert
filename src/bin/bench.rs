@@ -217,7 +217,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         .with_key_remapping(r"\.attention\.self\.", ".attention.self_attention.")
         .with_key_remapping(r"LayerNorm", "layer_norm")
         .with_from_adapter(PyTorchToBurnAdapter);
-    let report = model.load_from(&mut store)?;
+    let _report = model.load_from(&mut store)?;
     // println!("{report}");
     println!(
         "model load: {:.1} ms",
