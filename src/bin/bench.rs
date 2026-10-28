@@ -61,6 +61,7 @@ struct Diag {
 
 struct Args {
     data: String,
+    device: String,
     weights: String,
     tokenizer: String,
     config: String,
@@ -72,6 +73,7 @@ struct Args {
 fn parse_args() -> Result<Args, String> {
     let mut args = Args {
         data: "data/data.jsonl.gz".into(),
+        device: "gpu".into(),
         weights: "weights/model.safetensors".into(),
         tokenizer: "weights/tokenizer.json".into(),
         config: "weights/config.json".into(),
@@ -91,6 +93,7 @@ fn parse_args() -> Result<Args, String> {
         let number = |v: String| v.parse::<usize>().map_err(|e| e.to_string());
         match raw[i].as_str() {
             "--data" => args.data = value(&mut i)?,
+            "--device" => args.device = value(&mut i)?,
             "--weights" => args.weights = value(&mut i)?,
             "--tokenizer" => args.tokenizer = value(&mut i)?,
             "--config" => args.config = value(&mut i)?,
@@ -190,7 +193,21 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
              [--batch N] [--warmup N] [--limit N]"
         )
     })?;
-    let device = Device::wgpu(Default::default());
+
+    let device = match args.device.as_str() {
+        "gpu" => {
+            println!("Using GPU...");
+            Device::wgpu(Default::default())
+        }
+        "cpu" => {
+            println!("Using CPU...");
+            Device::flex()
+        }
+        _ => {
+            println!("Defaulting to CPU...");
+            Device::flex()
+        }
+    };
 
     let config: BertConfig = serde_json::from_str(&fs::read_to_string(&args.config)?)?;
     let mut model = BertForSequenceClassificationConfig::new().init(&config, &device);
@@ -201,7 +218,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         .with_key_remapping(r"LayerNorm", "layer_norm")
         .with_from_adapter(PyTorchToBurnAdapter);
     let report = model.load_from(&mut store)?;
-    println!("{report}");
+    // println!("{report}");
     println!(
         "model load: {:.1} ms",
         start.elapsed().as_secs_f64() * 1000.0
